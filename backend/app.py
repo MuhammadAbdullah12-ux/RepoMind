@@ -59,6 +59,9 @@ def sync_full_pipeline(
     Triggers the master RAG ingestion pipeline for a repository.
     Applies SHA-256 diffing, text chunking, embedding, Qdrant upserts, and SQLModel metadata updates.
     """
+    # Auto-fix if user pasted a full GitHub URL
+    repo = repo.replace("https://github.com/", "").replace("http://github.com/", "").strip("/")
+    
     pipeline = SyncPipeline()
     try:
         summary = pipeline.sync_repository(repo=repo, force=force)
@@ -185,15 +188,20 @@ def get_documents(
 
 class AskRequest(BaseModel):
     query: str
+    repo: str | None = None
 
 @app.post("/ask")
 def ask_question(request: AskRequest):
     """
     Queries the repository using the end-to-end RAG pipeline (search -> rerank -> generate).
     """
+    repo_name = request.repo
+    if repo_name:
+        repo_name = repo_name.replace("https://github.com/", "").replace("http://github.com/", "").strip("/")
+
     pipeline = AskPipeline()
     try:
-        response = pipeline.ask(request.query)
+        response = pipeline.ask(request.query, repo=repo_name)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:

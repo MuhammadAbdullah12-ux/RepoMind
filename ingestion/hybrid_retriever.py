@@ -34,7 +34,7 @@ class HybridRetriever:
         # Global client is managed at the application process level, do not close here
         pass
 
-    def _get_vector_candidates(self, query: str, top_k: int = 20, client: Optional[QdrantClient] = None) -> List[Dict[str, Any]]:
+    def _get_vector_candidates(self, query: str, top_k: int = 20, client: Optional[QdrantClient] = None, repo: str = None) -> List[Dict[str, Any]]:
         """
         Retrieves top_k candidate chunks using Dense Vector Search (Qdrant).
         """
@@ -42,10 +42,13 @@ class HybridRetriever:
         if client is None:
             client = self.client
 
+        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        query_filter = Filter(must=[FieldCondition(key="repo", match=MatchValue(value=repo))]) if repo else None
+
         try:
-            results = client.search(collection_name=self.collection_name, query_vector=query_vec, limit=top_k)
+            results = client.search(collection_name=self.collection_name, query_vector=query_vec, query_filter=query_filter, limit=top_k)
         except Exception:
-            results = client.query_points(collection_name=self.collection_name, query=query_vec, limit=top_k).points
+            results = client.query_points(collection_name=self.collection_name, query=query_vec, query_filter=query_filter, limit=top_k).points
 
 
         candidates = []
@@ -188,15 +191,16 @@ class HybridRetriever:
         candidate_k: int = 20,
         method: str = "rrf",
         alpha: float = 0.5,
-        client: Optional[QdrantClient] = None
+        client: Optional[QdrantClient] = None,
+        repo: str = None
     ) -> List[Dict[str, Any]]:
         """
         Main entry point for Hybrid Retrieval.
         Retrieves candidate_k vector matches and candidate_k BM25 matches,
         combines them using method ('rrf' or 'minmax'), and returns top_k fused results.
         """
-        vector_candidates = self._get_vector_candidates(query=query, top_k=candidate_k, client=client)
-        bm25_candidates = self.bm25_retriever.search(query=query, top_k=candidate_k)
+        vector_candidates = self._get_vector_candidates(query=query, top_k=candidate_k, client=client, repo=repo)
+        bm25_candidates = self.bm25_retriever.search(query=query, top_k=candidate_k, repo=repo)
 
         if method.lower() == "minmax":
             fused = self._min_max_fusion(vector_candidates, bm25_candidates, alpha=alpha)

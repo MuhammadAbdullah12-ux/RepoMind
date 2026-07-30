@@ -10,12 +10,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- FontAwesome icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=2">
 </head>
 <body>
     <!-- Welcome Landing Screen Overlay -->
     <div id="landing-screen" class="landing-screen">
-        <div class="landing-content">
+        <div id="landing-main-content" class="landing-content">
             <div class="landing-logo">
                 <i class="fa-solid fa-brain"></i>
             </div>
@@ -40,6 +40,19 @@
                     <button class="landing-chip" data-repo="langchain-ai/langchain"><i class="fa-solid fa-robot"></i> langchain-ai/langchain</button>
                     <button class="landing-chip" data-repo="psf/requests"><i class="fa-solid fa-spider"></i> psf/requests</button>
                 </div>
+            </div>
+        </div>
+
+        <div id="landing-loading-content" class="landing-content" style="display: none;">
+            <div class="landing-logo">
+                <i class="fa-solid fa-cloud-arrow-down pulse-icon"></i>
+            </div>
+            <h1 id="landing-loading-title">Syncing Repository...</h1>
+            <p>Please wait while we fetch and index the repository data. This might take a few moments depending on the size of the codebase.</p>
+            <div class="loading-dots" style="justify-content: center; margin-top: 24px; transform: scale(1.5);">
+                <span></span>
+                <span></span>
+                <span></span>
             </div>
         </div>
     </div>
@@ -123,9 +136,9 @@
                             <p>Hello! I am <strong>RepoMind</strong>, your intelligent repository assistant.</p>
                             <p>I query the indexed documentation, issue comments, and PR files to provide factual, citation-backed answers. Ask me a question, or test with these popular queries:</p>
                             <div class="sample-chips">
-                                <button class="chip" data-question="What are the two core library dependencies that FastAPI stands on?">Core dependencies?</button>
-                                <button class="chip" data-question="What does replace mutable default arg fix do?">PR default argument fix?</button>
-                                <button class="chip" data-question="How do you start a local development server?">Start dev server?</button>
+                                <button class="chip" data-question="What is the main purpose and functionality of this project?">Project overview?</button>
+                                <button class="chip" data-question="What are the core dependencies required to run this?">Core dependencies?</button>
+                                <button class="chip" data-question="How do you start the local development server or install the project?">Getting started?</button>
                             </div>
                         </div>
                     </div>

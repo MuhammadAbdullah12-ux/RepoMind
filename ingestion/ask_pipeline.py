@@ -34,7 +34,7 @@ class AskPipeline:
             pass
 
 
-    def ask(self, query: str) -> Dict[str, Any]:
+    def ask(self, query: str, repo: str = None) -> Dict[str, Any]:
         """
         Executes the end-to-end RAG answer pipeline:
         1. Hybrid Search (Vector + BM25 via RRF) -> Top-20 candidates
@@ -47,11 +47,11 @@ class AskPipeline:
             - "cited_chunk_ids": List of chunk IDs cited by the model
             - "source_chunks": Details of the top-5 source chunks retrieved
         """
-        print(f"\n[ASK] Query received: \"{query}\"")
+        print(f"\n[ASK] Query received: \"{query}\" (Repo: {repo or 'All'})")
         
         # 1. Perform Hybrid Search to get top-20 candidates
         print("[STEP 1/3] Performing Hybrid Search (Vector + BM25 via RRF)...")
-        candidates = self.retriever.search(query=query, top_k=20, method="rrf")
+        candidates = self.retriever.search(query=query, top_k=20, method="rrf", repo=repo)
         print(f" -> Retrieved {len(candidates)} hybrid candidate chunks.")
 
         if not candidates:

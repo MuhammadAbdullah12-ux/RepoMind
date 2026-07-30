@@ -48,11 +48,10 @@ sendBtn.addEventListener("click", () => {
 // ==========================================================================
 // 2. Repository Sync Pipeline (POST /sync)
 // ==========================================================================
-syncBtn.addEventListener("click", async () => {
-    const repo = repoInput.value.trim();
+async function performSync(repo) {
     if (!repo) {
         updateSyncStatus("error", "Invalid Name", "Please enter a valid owner/repo name.");
-        return;
+        return false;
     }
 
     // Toggle loading states
@@ -80,22 +79,31 @@ syncBtn.addEventListener("click", async () => {
                 `• Documents Skipped (Unchanged): ${data.docs_skipped || 0}<br>` +
                 `• Documents Added (New): ${data.docs_added || 0}<br>` +
                 `• Documents Updated (Mutated): ${data.docs_updated || 0}<br>` +
-                `• Total Examined: ${data.docs_examined || 0}<br>` +
+                `• Documents Deleted (Removed): ${data.docs_deleted || 0}<br>` +
+                `• Total Examined: ${data.total_documents || 0}<br>` +
                 `<small style="color: var(--text-muted)">Synced at ${timeStr}</small>`
             );
             
             // Update active header repo title
             currentRepoTitle.textContent = repo;
+            return true;
         } else {
             updateSyncStatus("error", "Sync Execution Failed", data.message || "An unknown error occurred during sync.");
+            return false;
         }
 
     } catch (err) {
         updateSyncStatus("error", "Sync Error", err.message);
+        return false;
     } finally {
         repoInput.disabled = false;
         syncBtn.disabled = false;
     }
+}
+
+syncBtn.addEventListener("click", async () => {
+    const repo = repoInput.value.trim();
+    await performSync(repo);
 });
 
 function updateSyncStatus(state, headline, detailHtml) {
@@ -125,13 +133,18 @@ async function submitUserQuestion() {
     // Scroll to bottom
     scrollToBottom();
 
+    let activeRepo = currentRepoTitle.textContent;
+    if (activeRepo === "Select a Repository" || !activeRepo.trim()) {
+        activeRepo = null;
+    }
+
     try {
         const response = await fetch("/ask", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ query: query })
+            body: JSON.stringify({ query: query, repo: activeRepo })
         });
 
         // Remove loading state bubble
@@ -354,12 +367,19 @@ themeToggleBtn.addEventListener("click", () => {
 });
 
 // Landing Sync & Chat event handler
-landingSyncBtn.addEventListener("click", () => {
+landingSyncBtn.addEventListener("click", async () => {
     const repo = landingRepoInput.value.trim();
     if (repo) {
         repoInput.value = repo;
+        
+        // Show loading state
+        document.getElementById("landing-main-content").style.display = "none";
+        document.getElementById("landing-loading-content").style.display = "flex";
+        
+        await performSync(repo);
+        
+        // When finished, show the chatbot interface
         landingScreen.classList.add("hidden");
-        syncBtn.click();
     } else {
         landingScreen.classList.add("hidden");
     }

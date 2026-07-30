@@ -40,3 +40,4 @@ class SyncLogRecord(SQLModel, table=True):
     last_synced_at: datetime = Field(default_factory=datetime.utcnow)
     docs_added: int = 0
     docs_updated: int = 0
+    docs_deleted: int = 0

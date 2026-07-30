@@ -76,7 +76,7 @@ class BM25Retriever:
         if self.tokenized_corpus:
             self.bm25 = BM25Okapi(self.tokenized_corpus)
 
-    def search(self, query: str, top_k: int = 20) -> List[Dict[str, Any]]:
+    def search(self, query: str, top_k: int = 20, repo: str = None) -> List[Dict[str, Any]]:
         """
         Searches the BM25 index for the input query string.
         Returns top_k most relevant candidate chunks with their BM25 relevance scores.
@@ -96,6 +96,8 @@ class BM25Retriever:
         for idx, score in enumerate(scores):
             if score > 0:  # Only consider documents with non-zero BM25 match
                 candidate = dict(self.corpus_chunks[idx])
+                if repo and candidate.get("payload", {}).get("repo") != repo:
+                    continue
                 candidate["bm25_score"] = float(score)
                 scored_candidates.append(candidate)
 

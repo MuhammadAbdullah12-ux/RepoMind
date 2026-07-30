@@ -251,13 +251,40 @@ class SyncPipeline:
                         wait=True,
                         points=points_buffer
                     )
+            # --- NEW DELETION LOGIC ---
+            docs_deleted = 0
+            fetched_doc_ids = {item["doc_id"] for item in docs_to_process}
+            existing_docs = session.exec(select(DocumentRecord).where(DocumentRecord.repo == repo)).all()
+            
+            for doc in existing_docs:
+                if doc.doc_id not in fetched_doc_ids:
+                    safe_print(f"  [DELETED DOCUMENT] Removing obsolete document: {doc.doc_id}")
                     
+                    # 1. Delete associated chunks from Qdrant
+                    old_chunks = session.exec(select(ChunkRecord).where(ChunkRecord.doc_id == doc.doc_id)).all()
+                    if old_chunks:
+                        point_ids = [c.qdrant_point_id for c in old_chunks]
+                        try:
+                            self.qdrant.delete(collection_name=self.collection_name, points_selector=point_ids)
+                        except Exception as e:
+                            print(f"[WARNING] Failed to delete obsolete points from Qdrant: {e}")
+                        
+                        # 2. Delete ChunkRecords from SQLite
+                        for c in old_chunks:
+                            session.delete(c)
+                            
+                    # 3. Delete DocumentRecord from SQLite
+                    session.delete(doc)
+                    docs_deleted += 1
+            # --------------------------
+
             # Record audit sync log
             sync_log = SyncLogRecord(
                 repo=repo,
                 last_synced_at=datetime.utcnow(),
                 docs_added=docs_added,
-                docs_updated=docs_updated
+                docs_updated=docs_updated,
+                docs_deleted=docs_deleted
             )
             session.add(sync_log)
             session.commit()
@@ -268,6 +295,7 @@ class SyncPipeline:
             "total_documents": len(docs_to_process),
             "docs_added": docs_added,
             "docs_updated": docs_updated,
+            "docs_deleted": docs_deleted,
             "docs_skipped": docs_skipped,
             "chunks_created": total_chunks_created
         }
@@ -278,6 +306,7 @@ class SyncPipeline:
         print(f"  - Documents Added:           {summary['docs_added']}")
         print(f"  - Documents Updated:         {summary['docs_updated']}")
         print(f"  - Documents Skipped:         {summary['docs_skipped']}")
+        print(f"  - Documents Deleted:         {summary['docs_deleted']}")
         print(f"  - Chunks Created & Upserted: {summary['chunks_created']}")
         print("-----------------------------------------\n")
         
