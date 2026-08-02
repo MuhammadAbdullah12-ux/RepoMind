@@ -35,8 +35,10 @@ app = FastAPI(
 )
 
 # Ensure the static files directory exists and mount it
-os.makedirs("backend/static", exist_ok=True)
-app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+os.makedirs(STATIC_DIR, exist_ok=True)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 def compute_content_hash(text: str) -> str:
     """
@@ -47,6 +49,9 @@ def compute_content_hash(text: str) -> str:
 
 @app.get("/")
 def read_root():
+    index_file = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
     return FileResponse("backend/static/index.html")
 
 

@@ -10,7 +10,8 @@ load_dotenv()
 
 # Default to local SQLite storage for zero-dependency execution
 # If DATABASE_URL is set in .env (e.g. postgresql://repomind:password123@localhost:5432/repomind_db), it uses Postgres.
-DEFAULT_DB_URL = "sqlite:///data/repomind.db"
+IS_VERCEL = bool(os.getenv("VERCEL"))
+DEFAULT_DB_URL = "sqlite:////tmp/repomind.db" if IS_VERCEL else "sqlite:///data/repomind.db"
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 
 # For SQLite, check_same_thread=False allows FastAPI multi-threaded requests
@@ -23,7 +24,14 @@ def init_db():
     Initializes the database and creates all defined SQLModel tables.
     """
     if DATABASE_URL.startswith("sqlite"):
-        os.makedirs("data", exist_ok=True)
+        try:
+            if "///" in DATABASE_URL:
+                db_path = DATABASE_URL.split("///")[-1]
+                db_dir = os.path.dirname(db_path)
+                if db_dir:
+                    os.makedirs(db_dir, exist_ok=True)
+        except Exception:
+            pass
         
     print(f"[RUNNING] Initializing SQLModel Database at: {DATABASE_URL}...")
     # Import models to ensure they are registered with SQLModel metadata
