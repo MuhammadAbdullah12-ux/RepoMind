@@ -1,6 +1,6 @@
 # Progress Log — Week 1 & Week 2 Completed 🚀
 
-A summary of features built, bugs fixed, and architectural choices made during the development of the repository search assistant (**YomoLoco / RepoMind**).
+A summary of features built, bugs fixed, and architectural choices made during the development of the repository search assistant (**RepoMind**).
 
 ---
 

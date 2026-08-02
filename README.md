@@ -1,6 +1,6 @@
-# YomoLoco (RepoMind) 🧠⚡
+# RepoMind 🧠⚡
 
-**YomoLoco** (also known as **RepoMind**) is an end-to-end Retrieval-Augmented Generation (RAG) and relational metadata sync engine designed to ingest, structure, embed, and query GitHub repositories with high accuracy and minimal noise.
+**RepoMind** is an end-to-end Retrieval-Augmented Generation (RAG) and relational metadata sync engine designed to ingest, structure, embed, and query GitHub repositories with high accuracy and minimal noise.
 
 ---
 
@@ -83,7 +83,7 @@ QDRANT_PATH=./data/qdrant_db
 
 # GitHub Configuration
 GITHUB_TOKEN=your_github_personal_access_token
-GITHUB_REPO=MuhammadAbdullah12-ux/YomoLoco
+GITHUB_REPO=MuhammadAbdullah12-ux/repomind
 ```
 
 ### 3. Virtual Environment & Dependencies
