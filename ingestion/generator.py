@@ -29,9 +29,6 @@ class GeminiGenerator:
         if api_key:
             api_key = api_key.strip().strip("'").strip('"')
             
-        if not api_key or api_key == "your_key_here":
-            print("[WARNING] GEMINI_API_KEY is not configured in environment or .env. Gemini calls will fail.")
-            
         print(f"[RUNNING] Initializing Gemini client with model '{self.model_name}'...")
         try:
             if api_key and api_key != "your_key_here":
