@@ -1076,6 +1076,12 @@ body {
 
 /* Mobile Viewport Rules (Phones & Small Tablets) */
 @media (max-width: 768px) {
+    html, body {
+        overflow-x: hidden;
+        width: 100vw;
+        position: relative;
+    }
+
     .mobile-menu-btn {
         display: flex;
         align-items: center;
@@ -1084,22 +1090,30 @@ body {
 
     .app-container {
         flex-direction: column;
+        height: 100dvh;
+        width: 100vw;
+        overflow: hidden;
     }
 
+    /* Fix dark strip peeking: use transform translateX(-100%) and hide shadow when closed */
     .sidebar {
         position: fixed;
         top: 0;
-        left: -300px;
+        left: 0;
+        transform: translateX(-100%);
         width: 280px;
+        max-width: 85vw;
         height: 100vh;
-        z-index: 100;
-        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
-        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        height: 100dvh;
+        z-index: 1000;
+        box-shadow: none;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         background-color: var(--bg-sidebar);
     }
 
     .sidebar.mobile-open {
-        left: 0;
+        transform: translateX(0);
+        box-shadow: 4px 0 25px rgba(0, 0, 0, 0.6);
     }
 
     .collapse-sidebar-btn {
@@ -1108,28 +1122,49 @@ body {
 
     .main-content {
         width: 100%;
-        height: 100vh;
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
     }
 
     .app-header {
-        padding: 12px 16px;
-        gap: 12px;
+        padding: 10px 14px;
+        gap: 10px;
     }
 
     .header-info h1 {
-        font-size: 16px;
+        font-size: 15px;
     }
 
     .header-badge {
         display: none;
     }
 
+    /* Fix Landing overlay on mobile: opaque background, scrollable container */
+    .landing-screen {
+        height: 100dvh;
+        background-color: var(--bg-app);
+        padding: 16px;
+        z-index: 99999;
+        overflow-y: auto;
+    }
+
     .landing-content {
         padding: 24px 16px;
+        max-height: 85dvh;
+        overflow-y: auto;
+        margin: auto;
+        gap: 16px;
     }
 
     .landing-content h1 {
-        font-size: 24px;
+        font-size: 22px;
+    }
+
+    .landing-logo {
+        height: 64px;
+        width: 64px;
+        font-size: 30px;
     }
 
     .landing-input-group {
@@ -1155,16 +1190,32 @@ body {
         padding: 12px;
     }
 
+    /* Fix chips wrapping & clipping on mobile */
+    .sample-chips {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .sample-chips .chip {
+        white-space: normal;
+        text-align: left;
+        font-size: 11px;
+        padding: 6px 10px;
+    }
+
     .chat-wrapper {
-        padding: 12px;
+        padding: 10px;
+        flex: 1;
     }
 
     .message {
-        max-width: 95%;
+        max-width: 96%;
     }
 
     .app-input-area {
-        padding: 12px 16px;
+        padding: 10px 12px;
+        padding-bottom: max(10px, env(safe-area-inset-bottom));
+        background-color: var(--bg-app);
     }
 }
 
@@ -1172,7 +1223,7 @@ body {
     .landing-features {
         flex-direction: column;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
     }
 
     .landing-demo-chips {
