@@ -1082,6 +1082,11 @@ body {
         position: relative;
     }
 
+    /* Prevent mobile browser (iOS Safari & Chrome) auto-zoom on input focus */
+    #chat-input, #repo-input, #landing-repo-input, input, textarea {
+        font-size: 16px !important;
+    }
+
     .mobile-menu-btn {
         display: flex;
         align-items: center;
