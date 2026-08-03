@@ -11,8 +11,10 @@ load_dotenv()
 # Default to local SQLite storage for zero-dependency execution
 # If DATABASE_URL is set in .env (e.g. postgresql://repomind:password123@localhost:5432/repomind_db), it uses Postgres.
 IS_VERCEL = bool(os.getenv("VERCEL"))
-DEFAULT_DB_URL = "sqlite:////tmp/repomind.db" if IS_VERCEL else "sqlite:///data/repomind.db"
-DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
+if IS_VERCEL:
+    DATABASE_URL = "sqlite:////tmp/repomind.db"
+else:
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/repomind.db")
 
 # For SQLite, check_same_thread=False allows FastAPI multi-threaded requests
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
@@ -31,11 +33,11 @@ def init_db():
                 if db_dir:
                     os.makedirs(db_dir, exist_ok=True)
                 
-                # If running on Vercel and /tmp database does not exist, copy pre-seeded database
+                # If running on Vercel and /tmp database is missing or empty, copy pre-seeded database
                 if IS_VERCEL and db_path.startswith("/tmp/"):
-                    if not os.path.exists(db_path):
+                    if not os.path.exists(db_path) or os.path.getsize(db_path) == 0:
                         for candidate in ["repomind.db", "data/repomind.db"]:
-                            if os.path.exists(candidate):
+                            if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
                                 import shutil
                                 print(f"[INFO] Copying pre-built DB '{candidate}' to '{db_path}'...")
                                 shutil.copyfile(candidate, db_path)
