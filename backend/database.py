@@ -30,8 +30,18 @@ def init_db():
                 db_dir = os.path.dirname(db_path)
                 if db_dir:
                     os.makedirs(db_dir, exist_ok=True)
-        except Exception:
-            pass
+                
+                # If running on Vercel and /tmp database does not exist, copy pre-seeded database
+                if IS_VERCEL and db_path.startswith("/tmp/"):
+                    if not os.path.exists(db_path):
+                        for candidate in ["repomind.db", "data/repomind.db"]:
+                            if os.path.exists(candidate):
+                                import shutil
+                                print(f"[INFO] Copying pre-built DB '{candidate}' to '{db_path}'...")
+                                shutil.copyfile(candidate, db_path)
+                                break
+        except Exception as e:
+            print(f"[WARNING] Database seed copy check: {e}")
         
     print(f"[RUNNING] Initializing SQLModel Database at: {DATABASE_URL}...")
     # Import models to ensure they are registered with SQLModel metadata

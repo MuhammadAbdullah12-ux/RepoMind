@@ -1,9 +1,5 @@
 import math
-import torch
-torch.set_num_threads(1)
 from typing import List, Dict, Any
-from sentence_transformers import CrossEncoder
-
 
 _RERANKER_CACHE = {}
 
@@ -12,15 +8,28 @@ class BgeReranker:
     Stage 2 Precision Reranker Wrapper.
     Uses BAAI/bge-reranker-base Cross-Encoder to re-score and re-order
     candidate document chunks retrieved from Stage 1 Vector Search.
+    Falls back gracefully when PyTorch / CrossEncoder is unavailable (e.g. Vercel serverless).
     """
     def __init__(self, model_name: str = "BAAI/bge-reranker-base"):
         self.model_name = model_name
+        self.use_cross_encoder = False
+        
         if model_name not in _RERANKER_CACHE:
-            print(f"[RUNNING] Loading Reranker model: '{model_name}'...")
-            _RERANKER_CACHE[model_name] = CrossEncoder(model_name)
-            print(f"[SUCCESS] Reranker model '{model_name}' ready!")
-        self.model = _RERANKER_CACHE[model_name]
+            try:
+                import torch
+                torch.set_num_threads(1)
+                from sentence_transformers import CrossEncoder
+                print(f"[RUNNING] Loading Reranker model: '{model_name}'...")
+                _RERANKER_CACHE[model_name] = CrossEncoder(model_name)
+                print(f"[SUCCESS] Reranker model '{model_name}' ready!")
+            except Exception as e:
+                print(f"[INFO] CrossEncoder unavailable ({e}). Using stage-1 hybrid fallback ordering.")
+                _RERANKER_CACHE[model_name] = "lightweight_mode"
 
+        model_ref = _RERANKER_CACHE[model_name]
+        if model_ref != "lightweight_mode":
+            self.model = model_ref
+            self.use_cross_encoder = True
 
     @staticmethod
     def _logit_to_sigmoid(logit: float) -> float:
@@ -36,40 +45,42 @@ class BgeReranker:
         top_k: int = 5
     ) -> List[Dict[str, Any]]:
         """
-        Reranks a list of candidate chunk dictionaries for a given query string.
-        
-        Each candidate dictionary should contain at least:
-          - "text" or "content": The text snippet of the chunk.
-          - "doc_id": Unique identifier for the source document.
-          
-        Returns:
-          Top-K reranked list of candidate dictionaries updated with:
-          - "rerank_score": Raw logit score from CrossEncoder.
-          - "rerank_prob": Normalized Sigmoid probability [0.0 - 1.0].
+        Reranks candidate chunks. Uses CrossEncoder if available, otherwise hybrid fallback.
         """
         if not candidates:
             return []
 
-        # 1. Extract candidate text strings
-        pairs = []
-        for cand in candidates:
-            chunk_text = cand.get("text") or cand.get("content") or ""
-            pairs.append([query, chunk_text])
+        if self.use_cross_encoder:
+            try:
+                pairs = []
+                for cand in candidates:
+                    chunk_text = cand.get("text") or cand.get("content") or ""
+                    pairs.append([query, chunk_text])
 
-        # 2. Compute cross-encoder relevance logits
-        raw_scores = self.model.predict(pairs)
+                raw_scores = self.model.predict(pairs)
 
-        # 3. Attach rerank metrics to candidates
+                reranked_results = []
+                for cand, score in zip(candidates, raw_scores):
+                    score_float = float(score)
+                    cand_copy = dict(cand)
+                    cand_copy["rerank_score"] = score_float
+                    cand_copy["rerank_prob"] = self._logit_to_sigmoid(score_float)
+                    reranked_results.append(cand_copy)
+
+                reranked_results.sort(key=lambda x: x["rerank_score"], reverse=True)
+                return reranked_results[:top_k]
+            except Exception as e:
+                print(f"[WARNING] CrossEncoder rerank failed: {e}. Falling back to hybrid score.")
+
+        # Fallback scoring when CrossEncoder is not loaded
         reranked_results = []
-        for cand, score in zip(candidates, raw_scores):
-            score_float = float(score)
+        for idx, cand in enumerate(candidates):
             cand_copy = dict(cand)
-            cand_copy["rerank_score"] = score_float
-            cand_copy["rerank_prob"] = self._logit_to_sigmoid(score_float)
+            score_val = cand.get("rrf_score") or cand.get("vector_score") or (1.0 / (idx + 1))
+            cand_copy["rerank_score"] = float(score_val)
+            cand_copy["rerank_prob"] = min(1.0, max(0.0, float(score_val)))
             reranked_results.append(cand_copy)
 
-        # 4. Sort candidates descending by raw logit score
         reranked_results.sort(key=lambda x: x["rerank_score"], reverse=True)
-
-        # 5. Return top-K candidates
         return reranked_results[:top_k]
+

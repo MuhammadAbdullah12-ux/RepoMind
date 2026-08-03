@@ -2,10 +2,11 @@ fastapi>=0.100.0
 uvicorn[standard]>=0.22.0
 qdrant-client>=1.6.0
 sqlmodel>=0.0.8
-psycopg2-binary>=2.9.6
 python-dotenv>=1.0.0
 PyGithub>=2.1.0
-sentence-transformers>=2.2.0
 google-genai>=0.1.1
 pydantic>=2.0
 rank_bm25>=0.2.2
+# Optional heavy local dependencies (omitted for Vercel 250MB serverless limit):
+# sentence-transformers>=2.2.0
+

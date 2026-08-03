@@ -15,6 +15,20 @@ def get_qdrant_client(path: str = None) -> QdrantClient:
             path = "/tmp/qdrant_db" if os.getenv("VERCEL") else "data/qdrant_db"
         elif path == "data/qdrant_db" and os.getenv("VERCEL"):
             path = "/tmp/qdrant_db"
+            
+        if os.getenv("VERCEL") and path.startswith("/tmp/"):
+            if not os.path.exists(path) or len(os.listdir(path) if os.path.exists(path) else []) == 0:
+                for candidate in ["data/qdrant_db", "qdrant_storage"]:
+                    if os.path.exists(candidate):
+                        import shutil
+                        print(f"[INFO] Copying pre-built Qdrant vectors '{candidate}' to '{path}'...")
+                        try:
+                            if os.path.exists(path):
+                                shutil.rmtree(path)
+                            shutil.copytree(candidate, path)
+                        except Exception as e:
+                            print(f"[WARNING] Failed to copy Qdrant seed: {e}")
+                        break
         os.makedirs(path, exist_ok=True)
         _global_client = QdrantClient(path=path)
     return _global_client

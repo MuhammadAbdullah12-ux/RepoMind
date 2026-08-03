@@ -15,6 +15,22 @@ const landingRepoInput = document.getElementById("landing-repo-input");
 const landingSyncBtn = document.getElementById("landing-sync-btn");
 const collapseSidebarBtn = document.getElementById("collapse-sidebar-btn");
 const sidebar = document.querySelector(".sidebar");
+const mobileMenuBtn = document.getElementById("mobile-menu-btn");
+const sidebarOverlay = document.getElementById("sidebar-overlay");
+
+if (mobileMenuBtn) {
+    mobileMenuBtn.addEventListener("click", () => {
+        sidebar.classList.toggle("mobile-open");
+        if (sidebarOverlay) sidebarOverlay.classList.toggle("active");
+    });
+}
+
+if (sidebarOverlay) {
+    sidebarOverlay.addEventListener("click", () => {
+        sidebar.classList.remove("mobile-open");
+        sidebarOverlay.classList.remove("active");
+    });
+}
 
 // Initial welcome content cache to allow chat resetting
 const initialWelcomeHtml = chatMessages.innerHTML;
