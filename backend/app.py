@@ -210,13 +210,21 @@ def ask_question(request: AskRequest):
     if repo_name:
         repo_name = repo_name.replace("https://github.com/", "").replace("http://github.com/", "").strip("/")
 
-    pipeline = AskPipeline()
     try:
+        pipeline = AskPipeline()
         response = pipeline.ask(request.query, repo=repo_name)
+        return response
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[ERROR] Ask pipeline error: {e}")
+        return {
+            "answer": f"Retrieval error: {str(e)}",
+            "cited_chunk_ids": [],
+            "source_chunks": []
+        }
     finally:
-        pipeline.close()
-    return response
+        try:
+            pipeline.close()
+        except Exception:
+            pass
 
 

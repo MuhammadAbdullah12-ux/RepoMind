@@ -22,20 +22,26 @@ class GeminiGenerator:
     Takes retrieved/reranked candidate document chunks and queries the Gemini LLM
     to produce a structured answer citing exact sources.
     """
-    def __init__(self, model_name: str = "gemini-flash-latest"):
-
-
+    def __init__(self, model_name: str = "gemini-2.5-flash"):
         self.model_name = model_name
         
-        # Check API key configuration
         api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            api_key = api_key.strip().strip("'").strip('"')
+            
         if not api_key or api_key == "your_key_here":
             print("[WARNING] GEMINI_API_KEY is not configured in environment or .env. Gemini calls will fail.")
             
         print(f"[RUNNING] Initializing Gemini client with model '{self.model_name}'...")
-        # Initialize the official google-genai client
-        self.client = genai.Client()
-        print("[SUCCESS] Gemini client initialized successfully.")
+        try:
+            if api_key and api_key != "your_key_here":
+                self.client = genai.Client(api_key=api_key)
+            else:
+                self.client = genai.Client()
+            print("[SUCCESS] Gemini client initialized successfully.")
+        except Exception as e:
+            print(f"[WARNING] Failed to initialize genai.Client: {e}")
+            self.client = None
 
     def construct_prompt(self, query: str, candidates: List[Dict[str, Any]]) -> str:
         """
@@ -81,32 +87,47 @@ class GeminiGenerator:
                 cited_chunk_ids=[]
             )
 
+        if not self.client:
+            summary = "\n".join([f"• {c.get('title', 'Doc')}: {c.get('text', '')[:120]}..." for c in candidates[:3]])
+            return RAGResponseSchema(
+                answer=f"Gemini API client is unavailable. Top retrieved context chunks:\n\n{summary}",
+                cited_chunk_ids=[c.get("chunk_id", "") for c in candidates[:3] if c.get("chunk_id")]
+            )
+
         prompt = self.construct_prompt(query, candidates)
         
-        # Configure structured JSON output conforming to our Pydantic schema
         config = types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=RAGResponseSchema,
-            temperature=0.0  # Set temperature to 0 for factual accuracy
+            temperature=0.0
         )
         
-        try:
-            print(f"[RUNNING] Generating answer using Gemini ({self.model_name})...")
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=config
-            )
-            
-            # Parse response text back into structured Pydantic object
-            response_data = json.loads(response.text)
-            validated_response = RAGResponseSchema(**response_data)
-            print("[SUCCESS] Answer generated and verified.")
-            return validated_response
-            
-        except Exception as e:
-            print(f"[ERROR] Failed to generate answer with Gemini: {e}")
-            raise e
+        # Try candidate model names in order of reliability
+        models_to_try = [self.model_name, "gemini-2.5-flash", "gemini-1.5-flash", "gemini-flash-latest"]
+        last_error = None
+
+        for m_name in models_to_try:
+            try:
+                print(f"[RUNNING] Generating answer using Gemini ({m_name})...")
+                response = self.client.models.generate_content(
+                    model=m_name,
+                    contents=prompt,
+                    config=config
+                )
+                response_data = json.loads(response.text)
+                validated_response = RAGResponseSchema(**response_data)
+                print("[SUCCESS] Answer generated and verified.")
+                return validated_response
+            except Exception as e:
+                last_error = e
+                print(f"[WARNING] Model '{m_name}' failed: {e}. Trying fallback...")
+                
+        # If all LLM attempts fail, return a helpful summary from retrieved chunks instead of crashing
+        summary = "\n".join([f"• [{c.get('title', 'Doc')}] {c.get('text', '')[:120]}..." for c in candidates[:3]])
+        return RAGResponseSchema(
+            answer=f"Could not reach Gemini LLM ({last_error}). Retrieved context summary:\n\n{summary}",
+            cited_chunk_ids=[c.get("chunk_id", "") for c in candidates[:3] if c.get("chunk_id")]
+        )
 
 if __name__ == "__main__":
     # Quick module test/demonstration
