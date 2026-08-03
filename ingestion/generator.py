@@ -92,33 +92,67 @@ class GeminiGenerator:
             )
 
         prompt = self.construct_prompt(query, candidates)
-        
-        config = types.GenerateContentConfig(
+        json_prompt = prompt + '\n\nIMPORTANT: Return a JSON object with two fields:\n- "answer": string containing your concise factual answer\n- "cited_chunk_ids": array of string IDs cited'
+
+        config_schema = types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=RAGResponseSchema,
             temperature=0.0
         )
         
-        # Try stable production model names first to prevent 503 capacity spikes
-        models_to_try = [self.model_name, "gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
+        config_plain = types.GenerateContentConfig(
+            temperature=0.0
+        )
+
+        models_to_try = [self.model_name, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]
         last_error = None
 
         for m_name in models_to_try:
+            # Attempt 1: With structured response_schema
             try:
-                print(f"[RUNNING] Generating answer using Gemini ({m_name})...")
+                print(f"[RUNNING] Generating answer using Gemini ({m_name} with schema)...")
                 response = self.client.models.generate_content(
                     model=m_name,
                     contents=prompt,
-                    config=config
+                    config=config_schema
                 )
                 response_data = json.loads(response.text)
                 validated_response = RAGResponseSchema(**response_data)
-                print("[SUCCESS] Answer generated and verified.")
+                print("[SUCCESS] Answer generated and verified with schema.")
                 return validated_response
             except Exception as e:
                 last_error = e
-                print(f"[WARNING] Model '{m_name}' failed: {e}. Trying fallback...")
+
+            # Attempt 2: Plain text JSON prompt fallback
+            try:
+                print(f"[RUNNING] Generating answer using Gemini ({m_name} plain text)...")
+                response = self.client.models.generate_content(
+                    model=m_name,
+                    contents=json_prompt,
+                    config=config_plain
+                )
+                txt = response.text.strip()
+                if "```json" in txt:
+                    txt = txt.split("```json")[1].split("```")[0].strip()
+                elif "```" in txt:
+                    txt = txt.split("```")[1].split("```")[0].strip()
                 
+                try:
+                    data = json.loads(txt)
+                    ans = data.get("answer") or txt
+                    c_ids = data.get("cited_chunk_ids") or []
+                except Exception:
+                    ans = txt
+                    c_ids = []
+                    
+                return RAGResponseSchema(
+                    answer=ans,
+                    cited_chunk_ids=c_ids
+                )
+            except Exception as e:
+                last_error = e
+                print(f"[WARNING] Model '{m_name}' failed: {e}.")
+
         # If all LLM attempts fail, return a helpful summary from retrieved chunks instead of crashing
         summary = "\n".join([f"• [{c.get('title', 'Doc')}] {c.get('text', '')[:120]}..." for c in candidates[:3]])
         return RAGResponseSchema(
