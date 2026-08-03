@@ -53,3 +53,5 @@ data/
 *.sqlite
 *.sqlite3
 
+
+.vercel

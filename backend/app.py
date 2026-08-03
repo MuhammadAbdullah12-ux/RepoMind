@@ -70,9 +70,15 @@ def sync_full_pipeline(
     pipeline = SyncPipeline()
     try:
         summary = pipeline.sync_repository(repo=repo, force=force)
+        return summary
+    except Exception as e:
+        print(f"[ERROR] Sync pipeline execution failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
     finally:
         pipeline.close()
-    return summary
 
 
 @app.post("/repository")

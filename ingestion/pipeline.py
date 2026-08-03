@@ -83,11 +83,13 @@ class SyncPipeline:
         print(f"=========================================")
         
         token = os.getenv("GITHUB_TOKEN")
-        if not token:
-            raise ValueError("[ERROR] GITHUB_TOKEN is not configured in .env file or environment.")
+        if token and token.strip():
+            g = Github(token.strip())
+        else:
+            print("[WARNING] GITHUB_TOKEN is not set. Falling back to unauthenticated GitHub API access.")
+            g = Github()
 
         # Connect to GitHub & fetch repository
-        g = Github(token)
         repo_obj = g.get_repo(repo)
         
         # Check GitHub API rate limits and back off if needed
@@ -103,7 +105,6 @@ class SyncPipeline:
                 print(f"[WARNING] GitHub rate limit extremely low ({rate.remaining}). Sleeping for {sleep_time:.1f} seconds until reset...")
                 time.sleep(sleep_time)
         except Exception as re:
-
             print(f"[WARNING] Could not retrieve GitHub rate limit info: {re}")
 
         docs_to_process = []
@@ -128,9 +129,10 @@ class SyncPipeline:
         except Exception as e:
             print(f"[WARNING] Failed to fetch live README.md: {e}")
 
-        # 2. Fetch Issues & PRs (limit to 30 for fast testing)
+        # 2. Fetch Issues & PRs (limit to 5 on Vercel for fast execution within serverless timeouts)
+        fetch_limit = 5 if os.getenv("VERCEL") else 30
         try:
-            issue_docs = fetch_issues(repo_obj, limit=30)
+            issue_docs = fetch_issues(repo_obj, limit=fetch_limit)
             for doc in issue_docs:
                 docs_to_process.append({
                     "doc_id": doc.doc_id,
