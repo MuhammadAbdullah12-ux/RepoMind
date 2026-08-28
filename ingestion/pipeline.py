@@ -230,6 +230,7 @@ class SyncPipeline:
                             "doc_id": doc_id,
                             "chunk_id": chunk_id,
                             "doc_type": item["doc_type"],
+                            "title": item["title"],
                             "repo": repo,
                             "text": chunk_str,
                             "url": item["url"]

@@ -104,10 +104,23 @@ class GeminiGenerator:
             temperature=0.0
         )
 
-        # Unique valid models ordered by preference
-        raw_models = [self.model_name, "gemini-2.0-flash", "gemini-1.5-flash"]
+        # Build priority model list
         models_to_try = []
-        for m in raw_models:
+        
+        # 1. Attempt dynamic model discovery from Google client if available
+        if self.client:
+            try:
+                available_models = list(self.client.models.list())
+                for m in available_models:
+                    m_name = getattr(m, "name", str(m))
+                    m_id = m_name.replace("models/", "")
+                    if "gemini" in m_id.lower() and "embed" not in m_id.lower() and "b" not in m_id.lower():
+                        models_to_try.append(m_id)
+            except Exception as le:
+                print(f"[INFO] Dynamic model discovery notice: {le}")
+
+        # 2. Append default model list if missing
+        for m in [self.model_name, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
             if m and m not in models_to_try:
                 models_to_try.append(m)
 
@@ -159,10 +172,26 @@ class GeminiGenerator:
                 last_error = e
                 print(f"[WARNING] Model '{m_name}' failed: {e}.")
 
-        # If all LLM attempts fail, return a helpful summary from retrieved chunks instead of crashing
-        summary = "\n\n".join([f"• **{c.get('title', 'Doc')}** ({c.get('doc_type', 'doc')}):\n{c.get('text', '')[:200]}..." for c in candidates[:3]])
+        # Formulate clean, user-friendly fallback context summary
+        err_msg = str(last_error)
+        if "404" in err_msg or "NOT_FOUND" in err_msg or "API_KEY" in err_msg:
+            api_info = "⚠️ **Gemini API Key Notice**: Please verify that `GEMINI_API_KEY` is set to a valid key from [Google AI Studio](https://aistudio.google.com/) in your Vercel project environment settings."
+        else:
+            api_info = f"⚠️ **Notice**: LLM generation fallback ({err_msg[:120]})."
+
+        summary_blocks = []
+        for cand in candidates[:3]:
+            t = cand.get('title')
+            if not t or t == "N/A":
+                t = cand.get('doc_id') or 'Document'
+            doc_type = cand.get('doc_type', 'doc')
+            snippet = cand.get('text', '').strip()[:250]
+            summary_blocks.append(f"• **{t}** (`{doc_type}`):\n{snippet}...")
+
+        context_summary = "\n\n".join(summary_blocks)
+
         return RAGResponseSchema(
-            answer=f"Could not reach Gemini LLM ({last_error}). Top retrieved context chunks:\n\n{summary}",
+            answer=f"{api_info}\n\n### Top Retrieved Context Chunks\n\n{context_summary}",
             cited_chunk_ids=[c.get("chunk_id", "") for c in candidates[:3] if c.get("chunk_id")]
         )
 
