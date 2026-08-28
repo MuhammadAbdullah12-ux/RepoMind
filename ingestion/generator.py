@@ -24,6 +24,8 @@ class GeminiGenerator:
     """
     def __init__(self, model_name: str = "gemini-2.0-flash"):
         self.model_name = model_name
+        self.has_key = False
+        self.client = None
         
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
@@ -31,13 +33,17 @@ class GeminiGenerator:
             
         print(f"[RUNNING] Initializing Gemini client with model '{self.model_name}'...")
         try:
-            if api_key and api_key != "your_key_here":
+            if api_key and api_key != "your_key_here" and len(api_key) > 5:
                 self.client = genai.Client(api_key=api_key)
+                self.has_key = True
+                print("[SUCCESS] Gemini client initialized with API Key.")
             else:
-                self.client = genai.Client()
-            print("[SUCCESS] Gemini client initialized successfully.")
+                print("[INFO] GEMINI_API_KEY environment variable is not configured.")
+                self.has_key = False
+                self.client = None
         except Exception as e:
             print(f"[WARNING] Failed to initialize genai.Client: {e}")
+            self.has_key = False
             self.client = None
 
     def construct_prompt(self, query: str, candidates: List[Dict[str, Any]]) -> str:
@@ -84,28 +90,36 @@ class GeminiGenerator:
                 cited_chunk_ids=[]
             )
 
-        if not self.client:
-            summary = "\n\n".join([f"• **{c.get('title', 'Doc')}** ({c.get('doc_type', 'doc')}):\n{c.get('text', '')[:200]}..." for c in candidates[:3]])
+        summary_blocks = []
+        for cand in candidates[:3]:
+            t = cand.get('title')
+            if not t or t == "N/A":
+                t = cand.get('doc_id') or 'Document'
+            doc_type = cand.get('doc_type', 'doc')
+            snippet = cand.get('text', '').strip()[:250]
+            summary_blocks.append(f"• **{t}** (`{doc_type}`):\n{snippet}...")
+        context_summary = "\n\n".join(summary_blocks)
+
+        if not self.has_key or not self.client:
+            api_info = "⚠️ **Action Required**: `GEMINI_API_KEY` is not configured in Vercel. Please add `GEMINI_API_KEY` in **Vercel Project Settings -> Environment Variables** and click **Redeploy**."
             return RAGResponseSchema(
-                answer=f"Gemini API client is unavailable. Here are the top retrieved context chunks:\n\n{summary}",
+                answer=f"{api_info}\n\n### Top Retrieved Context Chunks\n\n{context_summary}",
                 cited_chunk_ids=[c.get("chunk_id", "") for c in candidates[:3] if c.get("chunk_id")]
             )
 
         prompt = self.construct_prompt(query, candidates)
         json_prompt = prompt + '\n\nIMPORTANT: Return a JSON object with two fields:\n- "answer": string containing your concise factual answer\n- "cited_chunk_ids": array of string IDs cited'
 
-        config_schema = types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=RAGResponseSchema,
-            temperature=0.0
-        )
-        
         config_plain = types.GenerateContentConfig(
             temperature=0.0
         )
 
-        # Fast, targeted model preference list (max 2 fast models to keep execution under 2s)
-        models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash"]
+        models_to_try = [
+            "gemini-2.0-flash",
+            "models/gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "models/gemini-1.5-flash"
+        ]
         last_error = None
 
         for m_name in models_to_try:
