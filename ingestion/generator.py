@@ -104,47 +104,14 @@ class GeminiGenerator:
             temperature=0.0
         )
 
-        # Build priority model list
-        models_to_try = []
-        
-        # 1. Attempt dynamic model discovery from Google client if available
-        if self.client:
-            try:
-                available_models = list(self.client.models.list())
-                for m in available_models:
-                    m_name = getattr(m, "name", str(m))
-                    m_id = m_name.replace("models/", "")
-                    if "gemini" in m_id.lower() and "embed" not in m_id.lower() and "b" not in m_id.lower():
-                        models_to_try.append(m_id)
-            except Exception as le:
-                print(f"[INFO] Dynamic model discovery notice: {le}")
-
-        # 2. Append default model list if missing
-        for m in [self.model_name, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
-            if m and m not in models_to_try:
-                models_to_try.append(m)
-
+        # Fast, targeted model preference list (max 2 fast models to keep execution under 2s)
+        models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash"]
         last_error = None
 
         for m_name in models_to_try:
-            # Attempt 1: With structured response_schema
+            # Attempt 1: Fast plain text JSON generation
             try:
-                print(f"[RUNNING] Generating answer using Gemini ({m_name} with schema)...")
-                response = self.client.models.generate_content(
-                    model=m_name,
-                    contents=prompt,
-                    config=config_schema
-                )
-                response_data = json.loads(response.text)
-                validated_response = RAGResponseSchema(**response_data)
-                print("[SUCCESS] Answer generated and verified with schema.")
-                return validated_response
-            except Exception as e:
-                last_error = e
-
-            # Attempt 2: Plain text JSON prompt fallback
-            try:
-                print(f"[RUNNING] Generating answer using Gemini ({m_name} plain text)...")
+                print(f"[RUNNING] Generating answer using Gemini ({m_name})...")
                 response = self.client.models.generate_content(
                     model=m_name,
                     contents=json_prompt,
