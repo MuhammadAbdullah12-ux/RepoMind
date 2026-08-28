@@ -16,7 +16,7 @@ class AskPipeline:
         self,
         qdrant_path: str = "data/qdrant_db",
         collection_name: str = "repomind_collection",
-        gemini_model: str = "gemini-2.0-flash"
+        gemini_model: str = "gemini-3.6-flash"
 
 
     ):

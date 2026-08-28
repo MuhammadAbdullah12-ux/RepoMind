@@ -22,7 +22,7 @@ class GeminiGenerator:
     Takes retrieved/reranked candidate document chunks and queries the Gemini LLM
     to produce a structured answer citing exact sources.
     """
-    def __init__(self, model_name: str = "gemini-2.0-flash"):
+    def __init__(self, model_name: str = "gemini-3.6-flash"):
         self.model_name = model_name
         self.has_key = False
         self.client = None
@@ -115,10 +115,9 @@ class GeminiGenerator:
         )
 
         models_to_try = [
-            "gemini-2.0-flash",
-            "models/gemini-2.0-flash",
-            "gemini-1.5-flash",
-            "models/gemini-1.5-flash"
+            "gemini-3.6-flash",
+            "gemini-2.5-flash",
+            "gemini-flash-latest"
         ]
         last_error = None
 
