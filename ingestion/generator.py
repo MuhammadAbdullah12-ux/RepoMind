@@ -29,7 +29,7 @@ class GeminiGenerator:
         
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
-            api_key = api_key.strip().strip("'").strip('"')
+            api_key = api_key.strip().strip("'").strip('"').replace(" ", "").replace("\t", "")
             
         print(f"[RUNNING] Initializing Gemini client with model '{self.model_name}'...")
         try:
