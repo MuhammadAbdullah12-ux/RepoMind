@@ -81,6 +81,12 @@ class AskPipeline:
         # 2. Pass top-20 to the reranker and get the top-5
         print("[STEP 2/3] Reranking candidates using Cross-Encoder...")
         top_5 = self.reranker.rerank(query=query, candidates=flattened_candidates, top_k=5)
+        
+        # Ensure README documentation chunks are preserved when available in candidates
+        readme_candidates = [c for c in flattened_candidates if c.get("doc_type") == "readme"]
+        if readme_candidates and not any(c.get("doc_type") == "readme" for c in top_5):
+            top_5[-1] = readme_candidates[0]
+            
         print(" -> Reranking complete. Selected top-5 precision chunks.")
 
         # 3. Pass top-5 and query to GeminiGenerator to get the structured answer
