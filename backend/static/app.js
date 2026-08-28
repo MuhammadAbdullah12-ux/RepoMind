@@ -154,31 +154,38 @@ async function submitUserQuestion() {
         activeRepo = null;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
     try {
         const response = await fetch("/ask", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ query: query, repo: activeRepo })
+            body: JSON.stringify({ query: query, repo: activeRepo }),
+            signal: controller.signal
         });
-
-        // Remove loading state bubble
-        removeLoaderMessage(loaderId);
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
-            throw new Error(`Server returned status code: ${response.status}`);
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.message || errData.answer || `Server returned status code: ${response.status}`);
         }
 
         const data = await response.json();
         
         // 3. Render Assistant Response
+        removeLoaderMessage(loaderId);
         appendAssistantResponse(data);
 
     } catch (err) {
+        clearTimeout(timeoutId);
         removeLoaderMessage(loaderId);
-        appendMessage("assistant", `<p style="color: var(--accent-red)"><i class="fa-solid fa-triangle-exclamation"></i> <strong>Error retrieving answer:</strong> ${err.message}</p>`);
+        const errorMsg = err.name === "AbortError" ? "Request timed out while contacting the RAG backend. Please try again." : err.message;
+        appendMessage("assistant", `<p style="color: var(--accent-red)"><i class="fa-solid fa-triangle-exclamation"></i> <strong>Error retrieving answer:</strong> ${errorMsg}</p>`);
     } finally {
+        removeLoaderMessage(loaderId);
         scrollToBottom();
     }
 }

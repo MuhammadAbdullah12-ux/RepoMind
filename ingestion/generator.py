@@ -22,7 +22,7 @@ class GeminiGenerator:
     Takes retrieved/reranked candidate document chunks and queries the Gemini LLM
     to produce a structured answer citing exact sources.
     """
-    def __init__(self, model_name: str = "gemini-1.5-flash"):
+    def __init__(self, model_name: str = "gemini-2.0-flash"):
         self.model_name = model_name
         
         api_key = os.getenv("GEMINI_API_KEY")
@@ -85,9 +85,9 @@ class GeminiGenerator:
             )
 
         if not self.client:
-            summary = "\n".join([f"• {c.get('title', 'Doc')}: {c.get('text', '')[:120]}..." for c in candidates[:3]])
+            summary = "\n\n".join([f"• **{c.get('title', 'Doc')}** ({c.get('doc_type', 'doc')}):\n{c.get('text', '')[:200]}..." for c in candidates[:3]])
             return RAGResponseSchema(
-                answer=f"Gemini API client is unavailable. Top retrieved context chunks:\n\n{summary}",
+                answer=f"Gemini API client is unavailable. Here are the top retrieved context chunks:\n\n{summary}",
                 cited_chunk_ids=[c.get("chunk_id", "") for c in candidates[:3] if c.get("chunk_id")]
             )
 
@@ -104,7 +104,13 @@ class GeminiGenerator:
             temperature=0.0
         )
 
-        models_to_try = [self.model_name, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]
+        # Unique valid models ordered by preference
+        raw_models = [self.model_name, "gemini-2.0-flash", "gemini-1.5-flash"]
+        models_to_try = []
+        for m in raw_models:
+            if m and m not in models_to_try:
+                models_to_try.append(m)
+
         last_error = None
 
         for m_name in models_to_try:
@@ -154,9 +160,9 @@ class GeminiGenerator:
                 print(f"[WARNING] Model '{m_name}' failed: {e}.")
 
         # If all LLM attempts fail, return a helpful summary from retrieved chunks instead of crashing
-        summary = "\n".join([f"• [{c.get('title', 'Doc')}] {c.get('text', '')[:120]}..." for c in candidates[:3]])
+        summary = "\n\n".join([f"• **{c.get('title', 'Doc')}** ({c.get('doc_type', 'doc')}):\n{c.get('text', '')[:200]}..." for c in candidates[:3]])
         return RAGResponseSchema(
-            answer=f"Could not reach Gemini LLM ({last_error}). Retrieved context summary:\n\n{summary}",
+            answer=f"Could not reach Gemini LLM ({last_error}). Top retrieved context chunks:\n\n{summary}",
             cited_chunk_ids=[c.get("chunk_id", "") for c in candidates[:3] if c.get("chunk_id")]
         )
 

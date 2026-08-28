@@ -46,9 +46,14 @@ class HybridRetriever:
         query_filter = Filter(must=[FieldCondition(key="repo", match=MatchValue(value=repo))]) if repo else None
 
         try:
+            if not client.collection_exists(self.collection_name):
+                return []
             results = client.search(collection_name=self.collection_name, query_vector=query_vec, query_filter=query_filter, limit=top_k)
         except Exception:
-            results = client.query_points(collection_name=self.collection_name, query=query_vec, query_filter=query_filter, limit=top_k).points
+            try:
+                results = client.query_points(collection_name=self.collection_name, query=query_vec, query_filter=query_filter, limit=top_k).points
+            except Exception:
+                results = []
 
 
         candidates = []

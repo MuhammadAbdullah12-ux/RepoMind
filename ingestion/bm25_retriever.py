@@ -42,6 +42,20 @@ class BM25Retriever:
         from ingestion.qdrant_store import get_qdrant_client
         client = get_qdrant_client(self.qdrant_path)
         
+        try:
+            if not client.collection_exists(self.collection_name):
+                print(f"[INFO] Qdrant collection '{self.collection_name}' does not exist yet. BM25 index initialized as empty.")
+                self.corpus_chunks = []
+                self.tokenized_corpus = []
+                self.bm25 = None
+                return
+        except Exception as e:
+            print(f"[WARNING] Could not verify collection existence: {e}")
+            self.corpus_chunks = []
+            self.tokenized_corpus = []
+            self.bm25 = None
+            return
+
         # Retrieve up to 10,000 points from Qdrant collection
         try:
             points, _ = client.scroll(
@@ -51,7 +65,11 @@ class BM25Retriever:
                 with_vectors=False
             )
         except Exception as e:
-            raise RuntimeError(f"Failed to scroll points from Qdrant collection '{self.collection_name}': {e}")
+            print(f"[WARNING] Failed to scroll points from Qdrant collection '{self.collection_name}': {e}")
+            self.corpus_chunks = []
+            self.tokenized_corpus = []
+            self.bm25 = None
+            return
 
         self.corpus_chunks = []
         self.tokenized_corpus = []

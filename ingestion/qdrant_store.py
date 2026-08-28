@@ -30,6 +30,12 @@ def get_qdrant_client(path: str = None) -> QdrantClient:
                             print(f"[WARNING] Failed to copy Qdrant seed: {e}")
                         break
         os.makedirs(path, exist_ok=True)
+        lock_file = os.path.join(path, ".lock")
+        if os.path.exists(lock_file):
+            try:
+                os.remove(lock_file)
+            except Exception:
+                pass
         _global_client = QdrantClient(path=path)
     return _global_client
 
