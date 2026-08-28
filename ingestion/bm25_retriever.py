@@ -36,60 +36,78 @@ class BM25Retriever:
 
     def _build_index(self):
         """
-        Scrolls all stored points from Qdrant local database,
+        Scrolls all stored points from Qdrant local database or SQLModel SQLite fallback,
         extracts text payloads, tokenizes them, and initializes BM25Okapi.
         """
         from ingestion.qdrant_store import get_qdrant_client
         client = get_qdrant_client(self.qdrant_path)
         
+        points = []
         try:
-            if not client.collection_exists(self.collection_name):
-                print(f"[INFO] Qdrant collection '{self.collection_name}' does not exist yet. BM25 index initialized as empty.")
-                self.corpus_chunks = []
-                self.tokenized_corpus = []
-                self.bm25 = None
-                return
+            if client.collection_exists(self.collection_name):
+                points, _ = client.scroll(
+                    collection_name=self.collection_name,
+                    limit=10000,
+                    with_payload=True,
+                    with_vectors=False
+                )
         except Exception as e:
-            print(f"[WARNING] Could not verify collection existence: {e}")
-            self.corpus_chunks = []
-            self.tokenized_corpus = []
-            self.bm25 = None
-            return
-
-        # Retrieve up to 10,000 points from Qdrant collection
-        try:
-            points, _ = client.scroll(
-                collection_name=self.collection_name,
-                limit=10000,
-                with_payload=True,
-                with_vectors=False
-            )
-        except Exception as e:
-            print(f"[WARNING] Failed to scroll points from Qdrant collection '{self.collection_name}': {e}")
-            self.corpus_chunks = []
-            self.tokenized_corpus = []
-            self.bm25 = None
-            return
+            print(f"[WARNING] Qdrant scroll notice: {e}")
 
         self.corpus_chunks = []
         self.tokenized_corpus = []
 
-        for point in points:
-            payload = point.payload or {}
-            text = payload.get("text", "")
-            doc_id = payload.get("doc_id", "N/A")
-            doc_type = payload.get("doc_type", "N/A")
-
-            tokenized_text = self._tokenize(text)
-            
-            self.corpus_chunks.append({
-                "point_id": point.id,
-                "doc_id": doc_id,
-                "doc_type": doc_type,
-                "text": text,
-                "payload": payload
-            })
-            self.tokenized_corpus.append(tokenized_text)
+        if points:
+            for point in points:
+                payload = point.payload or {}
+                text = payload.get("text", "")
+                doc_id = payload.get("doc_id", "N/A")
+                doc_type = payload.get("doc_type", "N/A")
+                tokenized_text = self._tokenize(text)
+                
+                self.corpus_chunks.append({
+                    "point_id": point.id,
+                    "doc_id": doc_id,
+                    "doc_type": doc_type,
+                    "text": text,
+                    "payload": payload
+                })
+                self.tokenized_corpus.append(tokenized_text)
+        else:
+            # Fallback to reading chunk records directly from SQLModel relational store
+            try:
+                from backend.database import engine
+                from sqlmodel import Session, select
+                from backend.models import DocumentRecord, ChunkRecord
+                
+                with Session(engine) as session:
+                    docs = session.exec(select(DocumentRecord)).all()
+                    doc_map = {d.doc_id: d for d in docs}
+                    chunks = session.exec(select(ChunkRecord)).all()
+                    
+                    for c in chunks:
+                        doc = doc_map.get(c.doc_id)
+                        text = c.text or ""
+                        payload = {
+                            "doc_id": c.doc_id,
+                            "chunk_id": c.chunk_id,
+                            "doc_type": doc.doc_type if doc else "readme",
+                            "title": doc.title if doc else "Document",
+                            "repo": doc.repo if doc else "",
+                            "text": text,
+                            "url": doc.url if doc else ""
+                        }
+                        tokenized_text = self._tokenize(text)
+                        self.corpus_chunks.append({
+                            "point_id": c.qdrant_point_id or c.id,
+                            "doc_id": c.doc_id,
+                            "doc_type": doc.doc_type if doc else "readme",
+                            "text": text,
+                            "payload": payload
+                        })
+                        self.tokenized_corpus.append(tokenized_text)
+            except Exception as dbe:
+                print(f"[WARNING] SQLModel fallback index error: {dbe}")
 
         if self.tokenized_corpus:
             self.bm25 = BM25Okapi(self.tokenized_corpus)
@@ -104,7 +122,7 @@ class BM25Retriever:
 
         tokenized_query = self._tokenize(query)
         if not tokenized_query:
-            return []
+            tokenized_query = ["repository", "overview", "docs"]
 
         # Get raw BM25 relevance scores for all documents
         scores = self.bm25.get_scores(tokenized_query)
@@ -112,12 +130,11 @@ class BM25Retriever:
         # Pair candidates with scores and sort descending
         scored_candidates = []
         for idx, score in enumerate(scores):
-            if score > 0:  # Only consider documents with non-zero BM25 match
-                candidate = dict(self.corpus_chunks[idx])
-                if repo and candidate.get("payload", {}).get("repo") != repo:
-                    continue
-                candidate["bm25_score"] = float(score)
-                scored_candidates.append(candidate)
+            candidate = dict(self.corpus_chunks[idx])
+            if repo and candidate.get("payload", {}).get("repo") != repo:
+                continue
+            candidate["bm25_score"] = float(score)
+            scored_candidates.append(candidate)
 
         # Sort by BM25 score descending
         scored_candidates.sort(key=lambda x: x["bm25_score"], reverse=True)

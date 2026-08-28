@@ -212,4 +212,47 @@ class HybridRetriever:
         else:
             fused = self._reciprocal_rank_fusion(vector_candidates, bm25_candidates, k=60)
 
+        # Fallback to reading relational chunks from SQLModel if vector/BM25 fusion returns empty
+        if not fused:
+            try:
+                from backend.database import engine
+                from sqlmodel import Session, select
+                from backend.models import DocumentRecord, ChunkRecord
+
+                with Session(engine) as session:
+                    stmt = select(DocumentRecord)
+                    if repo:
+                        stmt = stmt.where(DocumentRecord.repo == repo)
+                    docs = session.exec(stmt).all()
+                    doc_map = {d.doc_id: d for d in docs}
+                    doc_ids = list(doc_map.keys())
+
+                    if doc_ids:
+                        chunks = session.exec(select(ChunkRecord).where(ChunkRecord.doc_id.in_(doc_ids))).all()
+                        fallback_list = []
+                        for c in chunks:
+                            doc = doc_map.get(c.doc_id)
+                            fallback_list.append({
+                                "doc_id": c.doc_id,
+                                "doc_type": doc.doc_type if doc else "readme",
+                                "title": doc.title if doc else "Document",
+                                "url": doc.url if doc else "N/A",
+                                "text": c.text,
+                                "vector_score": 0.5,
+                                "bm25_score": 0.5,
+                                "rrf_score": 0.5,
+                                "payload": {
+                                    "chunk_id": c.chunk_id,
+                                    "doc_id": c.doc_id,
+                                    "doc_type": doc.doc_type if doc else "readme",
+                                    "title": doc.title if doc else "Document",
+                                    "url": doc.url if doc else "N/A",
+                                    "text": c.text,
+                                    "repo": doc.repo if doc else repo
+                                }
+                            })
+                        return fallback_list[:top_k]
+            except Exception as fe:
+                print(f"[WARNING] SQLModel candidate retrieval fallback notice: {fe}")
+
         return fused[:top_k]
