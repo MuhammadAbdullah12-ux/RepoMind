@@ -141,10 +141,8 @@ class GeminiGenerator:
 
         # Formulate clean, user-friendly fallback context summary
         err_msg = str(last_error)
-        if "404" in err_msg or "NOT_FOUND" in err_msg or "API_KEY" in err_msg:
-            api_info = "⚠️ **Gemini API Key Notice**: Please verify that `GEMINI_API_KEY` is set to a valid key from [Google AI Studio](https://aistudio.google.com/) in your Vercel project environment settings."
-        else:
-            api_info = f"⚠️ **Notice**: LLM generation fallback ({err_msg[:120]})."
+        clean_err = err_msg.replace("'", "").replace('"', '').strip()
+        api_info = f"⚠️ **Gemini LLM Notice** ({clean_err[:120]}...): Please verify that `GEMINI_API_KEY` is added to your Vercel Project Environment Variables and redeployed."
 
         summary_blocks = []
         for cand in candidates[:3]:
